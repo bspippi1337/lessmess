@@ -22,7 +22,7 @@ jobs:
           cache: true
 
       - name: Test
-        run: 	go mod download gopkg.in/yaml.v3 && go test ./... && go mod download gopkg.in/check.v1
+        run: go test ./...
 
       - name: Build (dist)
         shell: bash
