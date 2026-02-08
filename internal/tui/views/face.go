@@ -14,8 +14,8 @@ func NewFace(quiet bool) Face {
 		frames: []string{
 			"(•‿•)",
 			"(•ᴗ•)",
-			"(•‿•)",
 			"(•̀ᴗ•́)و",
+			"(•‿•)",
 		},
 	}
 }

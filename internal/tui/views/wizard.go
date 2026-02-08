@@ -1,7 +1,10 @@
 package views
 
 import (
+	"fmt"
 	"strings"
+
+	"github.com/bspippi1337/restless/internal/core/discovery"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,69 +13,68 @@ import (
 
 type Wizard struct {
 	w, h int
-	step int
 
 	domain textinput.Model
-	base   textinput.Model
-	auth   textinput.Model
+	last   *discovery.Finding
+	err    string
 }
 
 func NewWizard() Wizard {
 	d := textinput.New()
-	d.Placeholder = "openai.com (or api.example.com)"
+	d.Placeholder = "bankid.no / openai.com / api.example.com"
 	d.Prompt = "Domain: "
 	d.Focus()
-
-	b := textinput.New()
-	b.Placeholder = "https://api.openai.com/v1"
-	b.Prompt = "Base URL: "
-
-	a := textinput.New()
-	a.Placeholder = "Bearer / API key / Basic"
-	a.Prompt = "Auth: "
-
-	return Wizard{step: 0, domain: d, base: b, auth: a}
+	return Wizard{domain: d}
 }
 
 func (wz *Wizard) SetSize(w, h int) { wz.w, wz.h = w, h }
 
+func (wz Wizard) DomainValue() string { return strings.TrimSpace(wz.domain.Value()) }
+
+func (wz *Wizard) SetDiscovery(f *discovery.Finding, err string) {
+	wz.last = f
+	wz.err = err
+}
+
 func (wz Wizard) Update(msg tea.Msg) (Wizard, tea.Cmd) {
 	var cmd tea.Cmd
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "enter":
-			wz.step = (wz.step + 1) % 3
-			wz.domain.Blur(); wz.base.Blur(); wz.auth.Blur()
-			if wz.step == 0 { wz.domain.Focus() }
-			if wz.step == 1 { wz.base.Focus() }
-			if wz.step == 2 { wz.auth.Focus() }
-			return wz, nil
-		}
-	}
-
-	if wz.step == 0 {
-		wz.domain, cmd = wz.domain.Update(msg)
-	} else if wz.step == 1 {
-		wz.base, cmd = wz.base.Update(msg)
-	} else {
-		wz.auth, cmd = wz.auth.Update(msg)
-	}
+	wz.domain, cmd = wz.domain.Update(msg)
 	return wz, cmd
 }
 
-func (wz Wizard) View() string {
+func (wz Wizard) View(busy bool) string {
 	card := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2).BorderForeground(cLine)
-	title := lipgloss.NewStyle().Bold(true).Foreground(cTitle).Render("Connect & Discover Wizard")
-	sub := lipgloss.NewStyle().Foreground(cDim).Render("Enter domain, base URL, and auth. Next: autodiscovery + presets.")
+	title := lipgloss.NewStyle().Bold(true).Foreground(cTitle).Render("Connect & Discover (one input)")
+	sub := lipgloss.NewStyle().Foreground(cDim).Render("Enter a domain. Press Ctrl+D to discover.")
 
-	fields := strings.Join([]string{
-		wz.domain.View(),
-		wz.base.View(),
-		wz.auth.View(),
-		"",
-		lipgloss.NewStyle().Foreground(cDim).Render("Enter = next field · Tab = next tab"),
-	}, "\n")
+	status := ""
+	if busy {
+		status = lipgloss.NewStyle().Foreground(cWarn).Render("Discovering… (docs → scrape → fuzz → verify)")
+	} else if wz.err != "" {
+		status = lipgloss.NewStyle().Foreground(cWarn).Render("Discovery error: " + wz.err)
+	} else if wz.last != nil {
+		status = lipgloss.NewStyle().Foreground(cOk).Render(fmt.Sprintf("Base: %s · Endpoints: %d", wz.last.BaseURL, len(wz.last.Endpoints)))
+	}
 
-	return card.Render(title + "\n" + sub + "\n\n" + fields)
+	results := ""
+	if wz.last != nil && len(wz.last.Endpoints) > 0 {
+		lines := []string{lipgloss.NewStyle().Bold(true).Render("Top endpoints:")}
+		maxn := 10
+		if len(wz.last.Endpoints) < maxn {
+			maxn = len(wz.last.Endpoints)
+		}
+		for i := 0; i < maxn; i++ {
+			e := wz.last.Endpoints[i]
+			lines = append(lines, fmt.Sprintf("  %s %s", e.Method, e.Path))
+		}
+		results = "\n\n" + lipgloss.NewStyle().Foreground(cDim).Render(strings.Join(lines, "\n"))
+	}
+
+	out := title + "\n" + sub + "\n\n" + wz.domain.View()
+	if status != "" {
+		out += "\n\n" + status
+	}
+	out += results
+	out += "\n\n" + lipgloss.NewStyle().Foreground(cDim).Render("Tip: Press ? for help · Tab to switch views")
+	return card.Render(out)
 }

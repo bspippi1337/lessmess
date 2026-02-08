@@ -6,6 +6,8 @@ var (
 	cTitle = lipgloss.Color("63")
 	cDim   = lipgloss.Color("244")
 	cLine  = lipgloss.Color("238")
+	cOk    = lipgloss.Color("42")
+	cWarn  = lipgloss.Color("214")
 )
 
 func Header(app, tab, face string) string {
