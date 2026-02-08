@@ -1,0 +1,8 @@
+/bin/
+/dist/
+.fixall-logs/
+*.jks
+*.pfx
+*.pem
+*.key
+*.crt
